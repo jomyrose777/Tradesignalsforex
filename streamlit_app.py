@@ -3,11 +3,11 @@ import re
 import requests
 from selenium import webdriver
 from selenium.webdriver.common.by import By
-from selenium.webdriver.common.keys import Keys
+from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.chrome.options import Options
 import streamlit as st
 from telegram import Update
-from telegram.ext import Application, CommandHandler, MessageHandler, filters
-
+from telegram.ext import Application, MessageHandler, filters
 
 # Telegram bot configuration
 telegram_token = '7501900076:AAH_te48Nyq1Oai7MHIJvgLCUAF-Y3Fr0OA'
@@ -18,28 +18,33 @@ pocket_option_username = 'brightai234451@gmail.com'
 pocket_option_password = 'Jude@1234'
 
 # Trade amount
-TRADE_AMOUNT = 200  # Amount to trade in dollars
+trade_amount = 200  # Amount to trade
 
 # Initialize Streamlit
 st.title("Automated Trading Bot for Pocket Option")
 st.write("Monitoring Telegram channel for signals...")
 
+# Step 1: Initialize the WebDriver
 def initialize_webdriver():
     try:
-        driver = webdriver.Chrome()  # Uses default path if chromedriver is in PATH
+        chrome_options = Options()
+        chrome_options.add_argument("--headless")
+        chrome_options.add_argument("--no-sandbox")
+        chrome_options.add_argument("--disable-dev-shm-usage")
+        
+        service = Service(executable_path='C:/Users/jomyr/OneDrive/Desktop/chromedriver')  # Update this path
+        driver = webdriver.Chrome(service=service, options=chrome_options)
         return driver
     except Exception as e:
         st.error(f"Error initializing WebDriver: {e}")
         return None
 
-# Initialize WebDriver
-driver = initialize_webdriver()
-
-def login_to_pocket_option():
-    if driver is None:
+# Step 2: Log in to Pocket Option
+def login_to_pocket_option(driver):
+    if not driver:
         st.error("WebDriver not initialized. Cannot proceed with login.")
-        return
-    
+        return False
+
     st.write("Logging into Pocket Option...")
     driver.get("https://pocketoption.com/")
 
@@ -55,87 +60,80 @@ def login_to_pocket_option():
     st.write("Switching to Quick Trading Demo account...")
     driver.find_element(By.XPATH, '//span[text()="Quick Trading Demo account"]').click()
     time.sleep(3)
+    return True
 
+# Step 3: Parse the signals from Telegram messages
 def parse_signal(message):
     buy_signal = re.search(r'Summary:\s+BUY OPTION', message)
     sell_signal = re.search(r'Summary:\s+SELL OPTION', message)
     expiration_time = re.search(r'Expiration time:\s+(\d+)\s+MINUTES', message)
+    opening_price = re.search(r'Opening price:\s+(\d+\.\d+)', message)
     
-    if buy_signal and expiration_time:
+    if (buy_signal or sell_signal) and expiration_time and opening_price:
         return {
-            "action": "buy",
+            "action": "buy" if buy_signal else "sell",
             "expiration_time": int(expiration_time.group(1)),
-            "amount": TRADE_AMOUNT
-        }
-    elif sell_signal and expiration_time:
-        return {
-            "action": "sell",
-            "expiration_time": int(expiration_time.group(1)),
-            "amount": TRADE_AMOUNT
+            "price": float(opening_price.group(1))
         }
     return None
 
-def place_trade(action, expiration_time, amount):
-    if driver is None:
-        st.error("WebDriver not initialized. Cannot place trade.")
-        return
-    
-    st.write(f"Placing a {action.upper()} trade for ${amount} with expiration time {expiration_time} minutes...")
-    
+# Step 4: Place the trade based on the parsed signals
+def place_trade(driver, action, expiration_time, price):
+    st.write(f"Placing a {action.upper()} trade for {expiration_time} minutes at price {price}...")
+
     # Interact with the Pocket Option web interface to place the trade
     if action == "buy":
-        # Locate and click the buy button
         buy_button = driver.find_element(By.XPATH, '//button[contains(@class, "buy-button-selector")]')
         buy_button.click()
-        # Set the trade amount
-        amount_input = driver.find_element(By.XPATH, '//input[contains(@class, "amount-input-selector")]')
-        amount_input.clear()
-        amount_input.send_keys(str(amount))
-        # Set the expiration time if necessary
-        expiration_input = driver.find_element(By.XPATH, '//input[contains(@class, "expiration-input-selector")]')
-        expiration_input.clear()
-        expiration_input.send_keys(str(expiration_time))
-        # Confirm trade
-        confirm_button = driver.find_element(By.XPATH, '//button[contains(@class, "confirm-button-selector")]')
-        confirm_button.click()
     elif action == "sell":
-        # Locate and click the sell button
         sell_button = driver.find_element(By.XPATH, '//button[contains(@class, "sell-button-selector")]')
         sell_button.click()
-        # Set the trade amount
-        amount_input = driver.find_element(By.XPATH, '//input[contains(@class, "amount-input-selector")]')
-        amount_input.clear()
-        amount_input.send_keys(str(amount))
-        # Set the expiration time if necessary
-        expiration_input = driver.find_element(By.XPATH, '//input[contains(@class, "expiration-input-selector")]')
-        expiration_input.clear()
-        expiration_input.send_keys(str(expiration_time))
-        # Confirm trade
-        confirm_button = driver.find_element(By.XPATH, '//button[contains(@class, "confirm-button-selector")]')
-        confirm_button.click()
+    
+    # Set the trade amount if necessary (this step depends on the UI)
+    trade_amount_input = driver.find_element(By.XPATH, '//input[@class="trade-amount-selector"]')
+    trade_amount_input.clear()
+    trade_amount_input.send_keys(str(trade_amount))
+    
+    # Confirm the trade (if needed)
+    confirm_button = driver.find_element(By.XPATH, '//button[@class="confirm-button-selector"]')
+    confirm_button.click()
     
     st.write("Trade placed successfully!")
 
-def handle_message(update, context):
+# Step 5: Handle Telegram messages
+def handle_message(update: Update, context):
     message = update.message.text
     signal = parse_signal(message)
     if signal:
-        place_trade(signal['action'], signal['expiration_time'], signal['amount'])
+        driver = context.bot_data.get('driver')
+        if driver:
+            place_trade(driver, signal['action'], signal['expiration_time'], signal['price'])
+        else:
+            st.error("WebDriver not initialized. Cannot place trade.")
 
-def monitor_telegram_channel():
-    updater = Updater(token=telegram_token, use_context=True)
-    dispatcher = updater.dispatcher
-    dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, handle_message))
-    updater.start_polling()
+# Step 6: Monitor the Telegram channel for signals
+def monitor_telegram_channel(driver):
+    # Initialize the bot application
+    application = Application.builder().token(telegram_token).build()
+
+    # Store the driver in bot_data for use in handlers
+    application.bot_data['driver'] = driver
+
+    # Add the message handler
+    application.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+
+    # Start polling
+    application.run_polling()
 
 # Streamlit button to start trading
 if st.button('Start Trading'):
     st.write("Bot is now running...")
-    login_to_pocket_option()
-    monitor_telegram_channel()
+    driver = initialize_webdriver()
+    if login_to_pocket_option(driver):
+        monitor_telegram_channel(driver)
 
 # Clean up
 if st.button('Stop Trading'):
-    if driver:
+    if 'driver' in locals():
         driver.quit()
     st.write("Trading stopped and browser closed.")
