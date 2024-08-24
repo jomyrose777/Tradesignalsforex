@@ -6,8 +6,9 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.chrome.options import Options
 import streamlit as st
+from telegram.ext import Updater, MessageHandler, Filters, Application, filters
 from telegram import Update
-from telegram.ext import Application, MessageHandler, filters
+from webdriver_manager.chrome import ChromeDriverManager
 
 # Telegram bot configuration
 telegram_token = '7501900076:AAH_te48Nyq1Oai7MHIJvgLCUAF-Y3Fr0OA'
@@ -32,7 +33,7 @@ def initialize_webdriver():
         chrome_options.add_argument("--no-sandbox")
         chrome_options.add_argument("--disable-dev-shm-usage")
         
-        service = Service(executable_path='C:/Users/jomyr/OneDrive/Desktop/chromedriver')  # Update this path
+        service = Service(executable_path=ChromeDriverManager().install())  # Automatically manage ChromeDriver
         driver = webdriver.Chrome(service=service, options=chrome_options)
         return driver
     except Exception as e:
