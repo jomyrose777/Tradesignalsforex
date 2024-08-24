@@ -5,8 +5,8 @@ import requests
 import os
 from selenium import webdriver
 from selenium.webdriver.common.by import By
-from selenium.webdriver.chrome.service import Service   
-from selenium.webdriver.chrome.options import Options   
+from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.chrome.options import Options
 import streamlit as st
 from telegram import Update
 from telegram.ext import Application, MessageHandler, filters, CallbackContext
@@ -15,8 +15,6 @@ import logging
 
 # Set up logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
-
-# Pocket Option credentials from environment variables
 
 # Telegram bot configuration
 telegram_token = '7501900076:AAH_te48Nyq1Oai7MHIJvgLCUAF-Y3Fr0OA'
