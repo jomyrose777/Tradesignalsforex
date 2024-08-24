@@ -1,5 +1,6 @@
 import time
 import re
+import subprocess
 import requests
 from selenium import webdriver
 from selenium.webdriver.common.by import By
@@ -21,11 +22,67 @@ pocket_option_password = 'Jude@1234'
 # Trade amount
 trade_amount = 200  # Amount to trade
 
+# Step 1: Get Chrome and ChromeDriver versions and ensure they match
+def get_chrome_version():
+    try:
+        # Adjust the command based on your operating system
+        chrome_version_command = "google-chrome --version" if subprocess.os.name != 'nt' else \
+                                r'reg query "HKEY_CURRENT_USER\Software\Google\Chrome\BLBeacon" /v version'
+
+        result = subprocess.run(chrome_version_command, shell=True, capture_output=True, text=True, check=True)
+        version_match = re.search(r'(\d+\.\d+\.\d+)', result.stdout)
+
+        if version_match:
+            return version_match.group(0)
+        else:
+            print("STDOUT:", result.stdout)
+            print("STDERR:", result.stderr)
+            raise ValueError("Chrome version not found in output.")
+    except subprocess.CalledProcessError as e:
+        raise RuntimeError(f"Error checking Chrome version: {e}") from e
+
+def get_chromedriver_version(chromedriver_path):
+    try:
+        chromedriver_version_command = f'"{chromedriver_path}" --version'
+        result = subprocess.run(chromedriver_version_command, shell=True, capture_output=True, text=True, check=True)
+        version_match = re.search(r'(\d+\.\d+\.\d+)', result.stdout)
+
+        if version_match:
+            return version_match.group(0)
+        else:
+            print("STDOUT:", result.stdout)
+            print("STDERR:", result.stderr)
+            raise ValueError("ChromeDriver version not found in output.")
+    except subprocess.CalledProcessError as e:
+        raise RuntimeError(f"Error checking ChromeDriver version: {e}") from e
+
+def check_versions_match():
+    try:
+        chrome_version = get_chrome_version()
+        # Adjust the user path
+        chromedriver_path = r"C:/Users/jomyr/OneDrive/Desktop/chromedriver/chromedriver.exe"
+        chromedriver_version = get_chromedriver_version(chromedriver_path)
+
+        print(f"Chrome version: {chrome_version}")
+        print(f"ChromeDriver version: {chromedriver_version}")
+
+        if chrome_version in chromedriver_version:
+            print("Chrome and ChromeDriver versions match.")
+        else:
+            print("Versions do not match. Please update accordingly.")
+    except ValueError as e:
+        print(f"An error occurred: {e}")
+    except RuntimeError as e:
+        print(f"An error occurred: {e}")
+
+# Run the version check
+check_versions_match()
+
 # Initialize Streamlit
 st.title("Automated Trading Bot for Pocket Option")
 st.write("Monitoring Telegram channel for signals...")
 
-# Step 1: Initialize the WebDriver
+# Step 2: Initialize the WebDriver
 def initialize_webdriver():
     try:
         chrome_options = Options()
@@ -40,7 +97,7 @@ def initialize_webdriver():
         st.error(f"Error initializing WebDriver: {e}")
         return None
 
-# Step 2: Log in to Pocket Option
+# Step 3: Log in to Pocket Option
 def login_to_pocket_option(driver):
     if not driver:
         st.error("WebDriver not initialized. Cannot proceed with login.")
@@ -63,7 +120,7 @@ def login_to_pocket_option(driver):
     time.sleep(3)
     return True
 
-# Step 3: Parse the signals from Telegram messages
+# Step 4: Parse the signals from Telegram messages
 def parse_signal(message):
     buy_signal = re.search(r'Summary:\s+BUY OPTION', message)
     sell_signal = re.search(r'Summary:\s+SELL OPTION', message)
@@ -78,7 +135,7 @@ def parse_signal(message):
         }
     return None
 
-# Step 4: Place the trade based on the parsed signals
+# Step 5: Place the trade based on the parsed signals
 def place_trade(driver, action, expiration_time, price):
     st.write(f"Placing a {action.upper()} trade for {expiration_time} minutes at price {price}...")
 
@@ -101,7 +158,7 @@ def place_trade(driver, action, expiration_time, price):
     
     st.write("Trade placed successfully!")
 
-# Step 5: Handle Telegram messages
+# Step 6: Handle Telegram messages
 def handle_message(update: Update, context):
     message = update.message.text
     signal = parse_signal(message)
@@ -112,7 +169,7 @@ def handle_message(update: Update, context):
         else:
             st.error("WebDriver not initialized. Cannot place trade.")
 
-# Step 6: Monitor the Telegram channel for signals
+# Step 7: Monitor the Telegram channel for signals
 def monitor_telegram_channel(driver):
     # Initialize the bot application
     application = Application.builder().token(telegram_token).build()
