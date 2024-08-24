@@ -1,3 +1,4 @@
 streamlit
-selenium 
-python-telegram-bot requests
+selenium==4.8.0
+python-telegram-bot==20.0
+
